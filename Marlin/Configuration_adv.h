@@ -53,7 +53,7 @@
 //===========================================================================
 
 #if DISABLED(PIDTEMPBED)
-  #define BED_CHECK_INTERVAL 5000 // ms between checks in bang-bang control
+  #define BED_CHECK_INTERVAL 30000 // ms between checks in bang-bang control
   #if ENABLED(BED_LIMIT_SWITCHING)
     #define BED_HYSTERESIS 2 // Only disable heating if T>target+BED_HYSTERESIS and enable heating if T>target-BED_HYSTERESIS
   #endif
@@ -75,7 +75,7 @@
  */
 #if ENABLED(THERMAL_PROTECTION_HOTENDS)
   #define THERMAL_PROTECTION_PERIOD 40        // Seconds
-  #define THERMAL_PROTECTION_HYSTERESIS 4     // Degrees Celsius
+  #define THERMAL_PROTECTION_HYSTERESIS 10     // Degrees Celsius
 
   /**
    * Whenever an M104 or M109 increases the target temperature the firmware will wait for the
@@ -94,7 +94,7 @@
  * Thermal Protection parameters for the bed are just as above for hotends.
  */
 #if ENABLED(THERMAL_PROTECTION_BED)
-  #define THERMAL_PROTECTION_BED_PERIOD 20    // Seconds
+  #define THERMAL_PROTECTION_BED_PERIOD 120    // Seconds
   #define THERMAL_PROTECTION_BED_HYSTERESIS 2 // Degrees Celsius
 
   /**
@@ -106,7 +106,7 @@
    * If you get too many "Heating failed" errors, increase WATCH_BED_TEMP_PERIOD and/or decrease
    * WATCH_BED_TEMP_INCREASE. (WATCH_BED_TEMP_INCREASE should not be below 2.)
    */
-  #define WATCH_BED_TEMP_PERIOD 60                // Seconds
+  #define WATCH_BED_TEMP_PERIOD 120               // Seconds
   #define WATCH_BED_TEMP_INCREASE 2               // Degrees Celsius
 #endif
 
@@ -168,14 +168,16 @@
 
 // @section extruder
 
-//  extruder run-out prevention.
-//if the machine is idle, and the temperature over MINTEMP, every couple of SECONDS some filament is extruded
+// Extruder runout prevention.
+// If the machine is idle and the temperature over MINTEMP
+// then extrude some filament every couple of SECONDS.
 //#define EXTRUDER_RUNOUT_PREVENT
-#define EXTRUDER_RUNOUT_MINTEMP 190
-#define EXTRUDER_RUNOUT_SECONDS 30
-#define EXTRUDER_RUNOUT_ESTEPS 14   // mm filament
-#define EXTRUDER_RUNOUT_SPEED 1500  // extrusion speed
-#define EXTRUDER_RUNOUT_EXTRUDE 100
+#if ENABLED(EXTRUDER_RUNOUT_PREVENT)
+  #define EXTRUDER_RUNOUT_MINTEMP 190
+  #define EXTRUDER_RUNOUT_SECONDS 30
+  #define EXTRUDER_RUNOUT_SPEED 1500  // mm/m
+  #define EXTRUDER_RUNOUT_EXTRUDE 5   // mm
+#endif
 
 // @section temperature
 
@@ -203,17 +205,28 @@
 
 // @section extruder
 
-// Extruder cooling fans
-// Configure fan pin outputs to automatically turn on/off when the associated
-// extruder temperature is above/below EXTRUDER_AUTO_FAN_TEMPERATURE.
-// Multiple extruders can be assigned to the same pin in which case
-// the fan will turn on when any selected extruder is above the threshold.
-#define EXTRUDER_0_AUTO_FAN_PIN -1
-#define EXTRUDER_1_AUTO_FAN_PIN -1
-#define EXTRUDER_2_AUTO_FAN_PIN -1
-#define EXTRUDER_3_AUTO_FAN_PIN -1
+/**
+ * Extruder cooling fans
+ *
+ * Extruder auto fans automatically turn on when their extruders'
+ * temperatures go above EXTRUDER_AUTO_FAN_TEMPERATURE.
+ *
+ * Your board's pins file specifies the recommended pins. Override those here
+ * or set to -1 to disable completely.
+ *
+ * Multiple extruders can be assigned to the same pin in which case
+ * the fan will turn on when any selected extruder is above the threshold.
+ */
+#define E0_AUTO_FAN_PIN 1
+#define E1_AUTO_FAN_PIN -1
+#define E2_AUTO_FAN_PIN -1
+#define E3_AUTO_FAN_PIN -1
 #define EXTRUDER_AUTO_FAN_TEMPERATURE 50
 #define EXTRUDER_AUTO_FAN_SPEED   255  // == full speed
+
+// Define a pin to turn case light on/off
+//#define CASE_LIGHT_PIN 4
+//#define CASE_LIGHT_DEFAULT_ON   // Uncomment to set default state to on
 
 //===========================================================================
 //============================ Mechanical Settings ==========================
@@ -235,7 +248,7 @@
 //#define X_DUAL_STEPPER_DRIVERS
 #if ENABLED(X_DUAL_STEPPER_DRIVERS)
   // Set true if the two X motors need to rotate in opposite directions
-  #define INVERT_X2_VS_X_DIR true
+  #define INVERT_X2_VS_X_DIR false
 #endif
 
 
@@ -300,7 +313,7 @@
   //                           once. (2nd extruder x offset and temp offset are set using: M605 S2 [Xnnn] [Rmmm])
 
   // This is the default power-up mode which can be later using M605.
-  #define DEFAULT_DUAL_X_CARRIAGE_MODE 0
+  #define DEFAULT_DUAL_X_CARRIAGE_MODE DXC_FULL_CONTROL_MODE
 
   // Default settings in "Auto-park Mode"
   #define TOOLCHANGE_PARK_ZLIFT   0.2      // the distance to raise Z axis when parking an extruder
@@ -483,6 +496,35 @@
   #define BABYSTEP_MULTIPLICATOR 1 //faster movements
 #endif
 
+//
+// Ensure Smooth Moves
+//
+// Enable this option to prevent the machine from stuttering when printing multiple short segments.
+// This feature uses two strategies to eliminate stuttering:
+//
+// 1. During short segments a Graphical LCD update may take so much time that the planner buffer gets
+//    completely drained. When this happens pauses are introduced between short segments, and print moves
+//    will become jerky until a longer segment provides enough time for the buffer to be filled again.
+//    This jerkiness negatively affects print quality. The ENSURE_SMOOTH_MOVES option addresses the issue
+//    by pausing the LCD until there's enough time to safely update.
+//
+//    NOTE: This will cause the Info Screen to lag and controller buttons may become unresponsive.
+//          Enable ALWAYS_ALLOW_MENU to keep the controller responsive.
+//
+// 2. No block is allowed to take less time than MIN_BLOCK_TIME. That's the time it takes in the main
+//    loop to add a new block to the buffer, check temperatures, etc., including all blocked time due to
+//    interrupts (without LCD update). By enforcing a minimum time-per-move, the buffer is prevented from
+//    draining.
+//
+//#define ENSURE_SMOOTH_MOVES
+#if ENABLED(ENSURE_SMOOTH_MOVES)
+  //#define ALWAYS_ALLOW_MENU      // If enabled, the menu will always be responsive.
+                                   // WARNING: Menu navigation during short moves may cause stuttering!
+  #define LCD_UPDATE_THRESHOLD 170 // (ms) Minimum duration for the current segment to allow an LCD update.
+                                   // Default value is good for graphical LCDs (e.g., REPRAP_DISCOUNT_FULL_GRAPHIC_SMART_CONTROLLER).
+  #define MIN_BLOCK_TIME 6         // (ms) Minimum duration of a single block. You shouldn't need to modify this.
+#endif
+
 // @section extruder
 
 // extruder advance constant (s2/mm3)
@@ -499,9 +541,20 @@
   #define D_FILAMENT 2.85
 #endif
 
-// Implementation of a linear pressure control
-// Assumption: advance = k * (delta velocity)
-// K=0 means advance disabled. A good value for a gregs wade extruder will be around K=75
+/**
+ * Implementation of linear pressure control
+ *
+ * Assumption: advance = k * (delta velocity)
+ * K=0 means advance disabled.
+ * To get a rough start value for calibration, measure your "free filament length"
+ * between the hobbed bolt and the nozzle (in cm). Use the formula below that fits
+ * your setup, where L is the "free filament length":
+ *
+ * Filament diameter           |   1.75mm  |    3.0mm   |
+ * ----------------------------|-----------|------------|
+ * Stiff filament (PLA)        | K=47*L/10 | K=139*L/10 |
+ * Softer filament (ABS, nGen) | K=88*L/10 | K=260*L/10 |
+ */
 //#define LIN_ADVANCE
 
 #if ENABLED(LIN_ADVANCE)
@@ -530,7 +583,18 @@
 // Support for G5 with XYZE destination and IJPQ offsets. Requires ~2666 bytes.
 //#define BEZIER_CURVE_SUPPORT
 
-const unsigned int dropsegments = 5; //everything with less than this number of steps will be ignored as move and joined with the next movement
+// G38.2 and G38.3 Probe Target
+//#define G38_PROBE_TARGET
+#if ENABLED(G38_PROBE_TARGET)
+  #define G38_MINIMUM_MOVE 0.0275 // minimum distance in mm that will produce a move (determined using the print statement in check_move)
+#endif
+
+// Moves (or segments) with fewer steps than this will be joined with the next move
+#define MIN_STEPS_PER_SEGMENT 6
+
+// The minimum pulse width (in µs) for stepping a stepper.
+// Set this if you find stepping unreliable, or if using a very fast CPU.
+#define MINIMUM_STEPPER_PULSE 0 // (µs) The smallest stepper pulse allowed
 
 // @section temperature
 
@@ -546,7 +610,7 @@ const unsigned int dropsegments = 5; //everything with less than this number of 
 // The number of linear motions that can be in the plan at any give time.
 // THE BLOCK_BUFFER_SIZE NEEDS TO BE A POWER OF 2, i.g. 8,16,32 because shifts and ors are used to do the ring-buffering.
 #if ENABLED(SDSUPPORT)
-  #define BLOCK_BUFFER_SIZE 16   // SD,LCD,Buttons take more memory, block buffer needs to be smaller
+  #define BLOCK_BUFFER_SIZE 16 // SD,LCD,Buttons take more memory, block buffer needs to be smaller
 #else
   #define BLOCK_BUFFER_SIZE 16 // maximize block buffer
 #endif
@@ -563,7 +627,7 @@ const unsigned int dropsegments = 5; //everything with less than this number of 
 // For ADVANCED_OK (M105) you need 32 bytes.
 // For debug-echo: 128 bytes for the optimal speed.
 // Other output doesn't need to be that speedy.
-// :[0,2,4,8,16,32,64,128,256]
+// :[0, 2, 4, 8, 16, 32, 64, 128, 256]
 #define TX_BUFFER_SIZE 0
 
 // Enable an emergency-command parser to intercept certain commands as they
@@ -773,27 +837,43 @@ const unsigned int dropsegments = 5; //everything with less than this number of 
  *
  * ; Example #1
  * ; This macro send the string "Marlin" to the slave device with address 0x63 (99)
- * ; It uses multiple M155 commands with one B<base 10> arg
- * M155 A99  ; Target slave address
- * M155 B77  ; M
- * M155 B97  ; a
- * M155 B114 ; r
- * M155 B108 ; l
- * M155 B105 ; i
- * M155 B110 ; n
- * M155 S1   ; Send the current buffer
+ * ; It uses multiple M260 commands with one B<base 10> arg
+ * M260 A99  ; Target slave address
+ * M260 B77  ; M
+ * M260 B97  ; a
+ * M260 B114 ; r
+ * M260 B108 ; l
+ * M260 B105 ; i
+ * M260 B110 ; n
+ * M260 S1   ; Send the current buffer
  *
  * ; Example #2
  * ; Request 6 bytes from slave device with address 0x63 (99)
- * M156 A99 B5
+ * M261 A99 B5
  *
  * ; Example #3
- * ; Example serial output of a M156 request
+ * ; Example serial output of a M261 request
  * echo:i2c-reply: from:99 bytes:5 data:hello
  */
 
 // @section i2cbus
 
 //#define EXPERIMENTAL_I2CBUS
+#define I2C_SLAVE_ADDRESS  0 // Set a value from 8 to 127 to act as a slave
+
+/**
+ * Add M43 command for pins info and testing
+ */
+//#define PINS_DEBUGGING
+
+/**
+ * Auto-report temperatures with M155 S<seconds>
+ */
+//#define AUTO_REPORT_TEMPERATURES
+
+/**
+ * Include capabilities in M115 output
+ */
+//#define EXTENDED_CAPABILITIES_REPORT
 
 #endif // CONFIGURATION_ADV_H
